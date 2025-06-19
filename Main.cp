@@ -1,0 +1,668 @@
+#include <iostream>
+#include <string>
+#include <bitset>
+#include <algorithm>
+#include <random>
+#include <iomanip>
+#include <sstream>
+#include <utility>
+
+using namespace std;
+string Encryption(string enc, string key);
+string stringToBinary(const string& input);
+string ByteEncrypt(string base, string Key);
+string binaryToString(const string& binary);
+string SaltGen(string key, string maincode);
+string ByteDecrypt(string encrypted, string Key);
+string Decryption(string enc, string key);
+string compressor(const std::string& input);
+string decompressor(const std::string& input);
+string Jumbler(string content, string key);
+string UnJumbler(string content, string key);
+string FinalPacking(string content, string key);
+string SaltGenDetermin(string key1, string key2, int len);
+string UnFinalPacking(string packed);
+string Base64Encode(const string& input);
+string Base64Decode(const string& input);
+string KDF(string Okey, string SALT, int OP);
+string RSARIPOFF(string content, string key);
+string RSARIPOFF_Decrypt(string encryptedData, string key);
+string ObfuscatedR(string content, long long r, string key);
+string ProduceEncryptStream(long long r, int len);
+long long stringToLongLong(const string& s);
+string longlongToString(long long r);
+bool NumberCheck(int num);
+string toHex(const string& input);
+string fromHex(const string& input);
+string MAC(string content, string key);
+string verifyMAC(const string& fullMessage, const string& key);
+
+string Base64Decode(const string& input) {
+    static const string base64_chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    vector<int> T(256, -1);
+    for (int i = 0; i < 64; i++) T[base64_chars[i]] = i;
+
+    string output;
+    int val = 0, valb = -8;
+    for (unsigned char c : input) {
+        if (T[c] == -1) break;
+        val = (val << 6) + T[c];
+        valb += 6;
+        if (valb >= 0) {
+            output.push_back(char((val >> valb) & 0xFF));
+            valb -= 8;
+        }
+    }
+    return output;
+}
+
+string Base64Encode(const string& input) {
+    static const string base64_chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    string output;
+    int val = 0, valb = -6;
+    for (unsigned char c : input) {
+        val = (val << 8) + c;
+        valb += 8;
+        while (valb >= 0) {
+            output.push_back(base64_chars[(val >> valb) & 0x3F]);
+            valb -= 6;
+        }
+    }
+    if (valb > -6) {
+        output.push_back(base64_chars[((val << 8) >> (valb + 8)) & 0x3F]);
+    }
+    while (output.size() % 4) output.push_back('=');
+    return output;
+}
+
+string compressor(const std::string& input) {
+   ostringstream out;
+    int count = 1;
+    for (size_t i = 1; i <= input.length(); ++i) {
+        if (i < input.length() && input[i] == input[i - 1]) {
+            count++;
+        }
+        else {
+            out << input[i - 1] << count;
+            count = 1;
+        }
+    }
+    return out.str();
+}
+
+string decompressor(const std::string& input) {
+    std::ostringstream out;
+    for (size_t i = 0; i < input.length(); ++i) {
+        char c = input[i];
+        std::string num;
+        while (i + 1 < input.length() && std::isdigit(input[i + 1])) {
+            num += input[++i];
+        }
+        int count = std::stoi(num);
+        out << std::string(count, c);
+    }
+    return out.str();
+}
+
+
+string toHex(const string& input) {
+    stringstream ss;
+    ss << hex << setfill('0');
+    for (unsigned char c : input) {
+        ss << setw(2) << (int)c;
+    }
+    return ss.str();
+}
+
+string fromHex(const string& hex) {
+    string output;
+    for (size_t i = 0; i < hex.length(); i += 2) {
+        string byte = hex.substr(i, 2);
+        unsigned char chr = (char)strtol(byte.c_str(), nullptr, 16);
+        output.push_back(chr);
+    }
+    return output;
+}
+
+int main()
+{
+    int OP;
+    cout << "[\'1\' -> Encryption \n\'2\' - > Decryption]\nEnter: ";
+    cin >> OP;
+    cin.ignore();
+    switch(OP)
+    {
+    case 1:
+    {
+        string Tenc;
+        string ky;
+        cout << "String to encrypt: ";
+        getline(cin, Tenc);
+        if (Tenc=="")
+        {
+            cout << "I cant encrypt air lil bro.";
+            exit(1);
+        }
+        Tenc = compressor(Tenc);
+        cout << "Key: ";
+        getline(cin, ky);
+        string SALT = SaltGen("?@^@!@*sAe", "&!@&!912");
+        ky = KDF(ky, SALT, 1);
+        string Encrypted = Encryption(Tenc, ky);
+        cout << Base64Encode(SALT + Encrypted);
+        break;
+    }
+    case 2:
+    {
+        string TDec;
+        string ky;
+        cout << "Paste the encrypted text:";
+        getline(cin, TDec);
+        if (TDec == "") 
+        {
+            cout << "I cant decrypt air lil bro";
+            exit(1);
+        }
+        TDec = Base64Decode(TDec);
+        string extractedSalt = TDec.substr(0, 16);
+        cin.clear();
+        cout << "Key: ";
+        getline(cin, ky);
+        ky = KDF(ky, extractedSalt,2);
+        string Decrypted = Decryption(TDec.substr(16), ky);
+        cout << decompressor(Decrypted);
+        break;
+    }
+    default:
+        cout << "Your not tuff" << endl;
+        return 1;
+    }
+    
+    
+    
+}
+string Encryption(string enc, string key)
+{
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> distr(50, 123);
+    string salstart = "";
+    for(int i = 1;i<=6;i++)
+    {
+        char c = distr(gen);
+        salstart.push_back(c);
+    }
+    string Result = "";
+    int EL = enc.length();
+    int KL = key.length();
+    string sub = enc;
+    if (KL < EL)
+    {
+        while (key.length() < EL) {
+            key += key[key.length() % KL];
+        }
+    }
+    if(EL < KL)
+    {
+        key = key.substr(0, EL);
+    }
+    int f = 0;
+    for(char &c: sub)
+    {
+        c = (unsigned char)((c + key[f] + (f - 1)));
+        f++;
+    }
+    Result = ByteEncrypt(sub, key);
+    for (char& c : Result) c += 1;
+    string preFinal = salstart + Jumbler(Result, key);
+    string packed = FinalPacking(preFinal, key);
+    return RSARIPOFF(packed, key);
+}
+
+string stringToBinary(const string& input) {
+    string binaryResult = "";
+    for (char c : input) {
+        binaryResult += bitset<8>(c).to_string(); 
+    }
+    return binaryResult;
+}
+
+string binaryToString(const string& binary) {
+    string text = "";
+    for (size_t i = 0; i < binary.length(); i += 8) {
+        bitset<8> bits(binary.substr(i, 8));
+        text += char(bits.to_ulong());
+    }
+    return text;
+}
+
+
+string ByteEncrypt(string base, string Key)
+{
+    string Salt = SaltGen(Key, base);
+    base += Salt;
+    string Bbin = stringToBinary(base);
+    string Kbin = stringToBinary(Key);
+    int BLen = Bbin.length();
+    int KLen = Kbin.length();
+    string sub = Bbin;
+    
+    string Result = "";
+    while (Kbin.length() < sub.length()) {
+        Kbin += Kbin;
+    }
+    Kbin = Kbin.substr(0, sub.length());
+    for(int i = 0; i< sub.length();i++)
+    {
+        sub[i] = (sub[i] == Kbin[i]) ? '0' : '1';
+    }
+    reverse(sub.begin(), sub.end());
+    Result = binaryToString(sub);
+    return Result;
+}
+
+string SaltGen(string key, string maincode)
+{
+    random_device rd;
+    mt19937 gen(rd());                 
+    uniform_int_distribution<> distr(30, 90);
+    while(maincode.length() < 16)
+    {
+        maincode += maincode;
+    }
+    maincode = maincode.substr(0, 16);
+    while (key.length() < 16)
+    {
+        key += key;
+    }
+    key = key.substr(0, 16);
+    string R;
+    int y = 0;
+    for(int i = 1; i<=5;i++)
+    {
+        R.push_back((maincode[i] + key[y] - distr(gen)) % 128);
+        y++;
+    }
+    for (int i = 1; i <= 7;i++)
+    {
+        R.push_back((maincode[i] + key[y] - distr(gen)) % 128);
+        y++;
+    }
+    for (int i = 1; i <= 4;i++)
+    {
+        R.push_back((maincode[i] + key[y] - distr(gen)) % 128);
+        y++;
+    }
+    
+    return R;
+    
+}
+
+string ByteDecrypt(string encrypted, string Key)
+{
+    string BinEnc = stringToBinary(encrypted);
+
+    reverse(BinEnc.begin(), BinEnc.end());
+
+    string Kbin = stringToBinary(Key);
+    while (Kbin.length() < BinEnc.length()) {
+        Kbin += Kbin;
+    }
+    Kbin = Kbin.substr(0, BinEnc.length());
+
+    string decryptedBin = "";
+    for (int i = 0; i < BinEnc.length(); i++) {
+        decryptedBin += (BinEnc[i] == Kbin[i]) ? '0' : '1';
+    }
+
+    string fullPlain = binaryToString(decryptedBin);
+
+    if (fullPlain.length() > 16)
+        fullPlain = fullPlain.substr(0, fullPlain.length() - 16);
+
+    return fullPlain;
+}
+
+string Decryption(string enc, string key)
+{
+    enc = RSARIPOFF_Decrypt(enc, key);
+    enc = UnFinalPacking(enc);
+    enc = UnJumbler(enc, key);
+    enc = enc.substr(6);
+    for (char& c : enc) c -= 1;
+    string Result = "";
+
+    string stage1 = ByteDecrypt(enc, key);
+
+    int EL = stage1.length();
+    int KL = key.length();
+    if (KL < EL)
+    {
+        while (key.length() < EL) {
+            key += key[key.length() % KL];
+        }
+    }
+    if (EL < KL)
+    {
+        key = key.substr(0, EL);
+    }
+
+    for (int i = 0; i < EL; i++)
+    {
+        unsigned char c = stage1[i];
+        c = (c - key[i] - (i - 1));
+        Result += c;
+    }
+
+    return Result;
+}
+
+string Jumbler(string content, string key) {
+    // If odd length, pad with '\0' and add "!1" marker at front
+    bool isOdd = (content.length() % 2 != 0);
+    if (isOdd) {
+        content.push_back('\0');  // pad to even length
+    }
+
+    string chunked = "";
+
+    for (int i = 0; i < content.length(); i += 2) {
+        string chunk = content.substr(i, 2);
+
+        // Ensure key length at least 2
+        while (key.length() < 2)
+            key += key;
+
+        int val = ((unsigned char)chunk[0] << 8) | (unsigned char)chunk[1];
+        int keyVal = ((unsigned char)key[0] << 8) | (unsigned char)key[1];
+
+        int mode = (i / 2) % 3;  // 0 = XOR, 1 = ADD, 2 = SUB
+
+        if (mode == 0)
+            val ^= keyVal;
+        else if (mode == 1)
+            val = (val + keyVal) & 0xFFFF; // wrap 16-bit
+        else
+            val = (val - keyVal) & 0xFFFF;
+
+        chunked += (char)((val >> 8) & 0xFF);
+        chunked += (char)(val & 0xFF);
+    }
+
+    if (isOdd) {
+        chunked = "!1" + chunked;  // mark padded content
+    }
+
+    return chunked;
+}
+
+string UnJumbler(string content, string key) {
+    bool hasMarker = (content.length() >= 2 && content.substr(0, 2) == "!1");
+    if (hasMarker) {
+        content = content.substr(2);  // remove marker
+    }
+
+    string unchunked = "";
+
+    for (int i = 0; i < content.length(); i += 2) {
+        string chunk = content.substr(i, 2);
+
+        while (key.length() < 2)
+            key += key;
+
+        int val = ((unsigned char)chunk[0] << 8) | (unsigned char)chunk[1];
+        int keyVal = ((unsigned char)key[0] << 8) | (unsigned char)key[1];
+
+        int mode = (i / 2) % 3;
+
+        if (mode == 0)
+            val ^= keyVal;
+        else if (mode == 1)
+            val = (val - keyVal) & 0xFFFF;
+        else
+            val = (val + keyVal) & 0xFFFF;
+
+        unchunked += (char)((val >> 8) & 0xFF);
+        unchunked += (char)(val & 0xFF);
+    }
+
+    if (hasMarker && !unchunked.empty()) {
+        unchunked.pop_back();
+    }
+
+    return unchunked;
+}
+
+string SaltGenDetermin(string key1, string key2, int len)
+{
+    // Stretch both keys safely
+    while (key1.length() < len)
+        key1 += key1;
+    key1 = key1.substr(0, len);
+
+    while (key2.length() < len)
+        key2 += key2;
+    key2 = key2.substr(0, len);
+
+    // XOR them safely
+    string output;
+    for (int i = 0; i < len; i++) {
+        output.push_back(key1[i] ^ key2[i]);
+    }
+
+    return output;
+}
+
+string FinalPacking(string Cont, string key)
+{
+    string content = Cont;
+    int len = content.length();
+    string salt = SaltGenDetermin("!@>()Br", "*&>.01Z", len);
+    for (int i = 0; i < len; i++)
+    {
+        content[i] ^= salt[i];
+        int nw = (content[i] * 2) - (content[i] + 20);
+        content[i] = nw;
+    }
+    return to_string(len) + ",s" + content;
+}
+
+string UnFinalPacking(string packed)
+{
+    size_t pos = packed.find(",s");
+    if (pos == string::npos) return "";
+    int len = stoi(packed.substr(0, pos));
+    string salt = SaltGenDetermin("!@>()Br", "*&>.01Z", len);
+    string content = packed.substr(pos + 2);
+    for (int i = 0; i < len; i++)
+    {
+        content[i] += 20;
+        content[i] ^= salt[i];
+    }
+    return content;
+
+}
+
+string KDF(string Okey, string SALT, int OP)
+{
+    int SEED = 1;
+    string NKey;
+    string SCRAPPY = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789!@#$%^&*()-_=+[]{}|;:\",.<> ?/`~ ";
+    string UpdateKey = "";
+    for (int y = 1; y <= 24; y++)
+    {
+        for (int i = 0; i < Okey.length(); i++)
+        {
+            unsigned char NC = int(Okey[i]) + 21;
+            UpdateKey.push_back(NC);
+        }
+
+        while (SCRAPPY.length() < 256)
+            SCRAPPY += SCRAPPY;
+        SCRAPPY = SCRAPPY.substr(0, 256);
+
+        while (UpdateKey.length() < 256)
+            UpdateKey += UpdateKey;
+        UpdateKey = UpdateKey.substr(0, 256);
+
+        for (int y = 0; y < UpdateKey.length(); y++)
+        {
+            int NC = UpdateKey[y] ^ SCRAPPY[y];
+            NKey.push_back(NC);
+        }
+
+        for (char& c : NKey)
+            c = c << SEED;
+
+        NKey = NKey + SaltGenDetermin("?!@!J@!sBr,", "3$%&*?;we9-", 8);
+        int len = NKey.length();
+        string l = to_string(len);
+        reverse(l.begin(), l.end());
+        string XORSALT = SaltGenDetermin(l, "?!@!&212182y18h23y7dg3tfv3f", len);
+        for(int y = 0;y<NKey.length();y++)
+        {
+            NKey[y] ^= XORSALT[y];
+        }
+
+        if(NKey.length() % 2 != 0)
+        {
+            NKey.push_back('\'');
+        }
+
+        int f = 1;
+        int z = 1;
+        for(int i = 0;i<NKey.length();i+=2)
+        {
+            f += NKey[i];
+        }
+        for (int m = 1;m < NKey.length();m += 2)
+        {
+            z += NKey[m];
+        }
+        int AC = f - z;
+        if (AC < 0) AC *= -1;
+
+        NKey.push_back(AC);
+        for(int i = 1; i<NKey.length();i++)
+        {
+            NKey[i] ^= AC;
+        }
+
+        while(SALT.length()<NKey.length())
+        {
+            SALT += SALT;
+        }
+        for(int i = 0;i<NKey.length();i++)
+        {
+            NKey[i] ^= SALT[i];
+        }
+    }
+    return NKey;
+    
+}
+
+string longlongToString(long long r) {
+    string s;
+    for (int i = 0; i < 8; ++i)
+        s.push_back((r >> (i * 8)) & 0xFF);
+    return s;
+}
+
+long long stringToLongLong(const string& s) {
+    long long r = 0;
+    for (int i = 0; i < 8; ++i)
+        r |= (long long)((unsigned char)s[i]) << (i * 8);
+    return r;
+}
+
+
+bool NumberCheck(int num) {
+    if (num < 2) return false;
+    if (num == 2 || num == 3) return true;
+    if (num % 2 == 0 || num % 3 == 0) return false;
+    for (int i = 5; i * i <= num; i += 6) {
+        if (num % i == 0 || num % (i + 2) == 0) return false;
+    }
+    return true;
+}
+
+string ProduceEncryptStream(long long r, int len) {
+    string output;
+    mt19937_64 gen(r);
+    while (output.length() < len) {
+        uint64_t val = gen();
+        for (int j = 0; j < 8 && output.length() < len; j++) {
+            output.push_back((val >> (j * 8)) & 0xFF);
+        }
+    }
+    return output;
+}
+string RSARIPOFF(string content, string key) {
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> distr(100000, 1000000);
+    uniform_int_distribution<> mnDist(10, 10000);
+
+    long long k = 0;
+    while (!NumberCheck(k)) k = distr(gen);
+
+    int m = mnDist(gen), n = mnDist(gen);
+    while (m == n) n = mnDist(gen);
+
+    long long r = (1LL * k * k * (m - n) * (m - n) - 1LL * k * (m + n + 2)) / 2;
+
+    string stream = ProduceEncryptStream(r, content.length());
+    for (int i = 0; i < content.length(); i++)
+        content[i] ^= stream[i];
+
+    return ObfuscatedR(content, r, key);
+}
+string ObfuscatedR(string content, long long r, string key) {
+    string rbin = longlongToString(r);
+    for (int i = 1; i <= 9; i++) {
+        string Salt = SaltGenDetermin("?@!@!@!*", "!@!^^!)$^!&@&!*@9", 12);
+        while (Salt.length() < rbin.length()) Salt += Salt;
+        Salt = Salt.substr(0, rbin.length());
+        for (int j = 0; j < rbin.length(); j++)
+            rbin[j] ^= Salt[j];
+    }
+    return rbin + content;
+}
+
+string RSARIPOFF_Decrypt(string encryptedData, string key) {
+    string rbin = encryptedData.substr(0, 8);
+    string content = encryptedData.substr(8);
+
+    for (int i = 9; i >= 1; i--) {
+        string Salt = SaltGenDetermin("?@!@!@!*", "!@!^^!)$^!&@&!*@9", 12);
+        while (Salt.length() < rbin.length()) Salt += Salt;
+        Salt = Salt.substr(0, rbin.length());
+        for (int j = 0; j < rbin.length(); j++) {
+            rbin[j] ^= Salt[j];
+        }
+    }
+
+    long long r = stringToLongLong(rbin);
+
+    string stream = ProduceEncryptStream(r, content.length());
+
+    for (int i = 0; i < content.length(); i++) {
+        content[i] ^= stream[i];
+    }
+
+    return content; 
+}
+
+string MAC(string content, string key)
+{
+    return "";
+}
+
+string verifyMAC(const string& fullMessage, const string& key)
+{
+    return "";
+}
