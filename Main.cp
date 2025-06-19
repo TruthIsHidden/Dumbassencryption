@@ -36,6 +36,7 @@ string toHex(const string& input);
 string fromHex(const string& input);
 string MAC(string content, string key);
 string verifyMAC(const string& fullMessage, const string& key);
+string KDFMATH(string KEY);
 
 string Base64Decode(const string& input) {
     static const string base64_chars =
@@ -532,6 +533,7 @@ string KDF(string Okey, string SALT, int OP)
         {
             NKey.push_back('\'');
         }
+        NKey = KDFMATH(NKey);
 
         int f = 1;
         int z = 1;
@@ -621,15 +623,45 @@ string RSARIPOFF(string content, string key) {
 
     return ObfuscatedR(content, r, key);
 }
-string ObfuscatedR(string content, long long r, string key) {
+string ObfuscatedR(string content, long long r, string key)
+{
+    string ESalt;
     string rbin = longlongToString(r);
+
+    // Ensure key is at least as long as rbin
+    while (key.length() < rbin.length())
+        key += key;
+    key = key.substr(0, rbin.length());
+
+    seed_seq seed(key.begin(), key.end());
+    mt19937 gen(seed);
+    uniform_int_distribution<> distr(10, 128);
+
     for (int i = 1; i <= 9; i++) {
         string Salt = SaltGenDetermin("?@!@!@!*", "!@!^^!)$^!&@&!*@9", 12);
         while (Salt.length() < rbin.length()) Salt += Salt;
         Salt = Salt.substr(0, rbin.length());
+
+        // Step 1: XOR with Salt
         for (int j = 0; j < rbin.length(); j++)
             rbin[j] ^= Salt[j];
+
+        // Step 2: XOR with key
+        for (int j = 0; j < rbin.length(); j++)
+            rbin[j] ^= key[j];
+
+        // Step 3: XOR with generated ESalt
+        ESalt.clear();
+        for (int j = 1; j <= 150; j++) {
+            unsigned char c = distr(gen);
+            ESalt.push_back(c);
+        }
+        ESalt = ESalt.substr(0, rbin.length());
+
+        for (int j = 0; j < rbin.length(); j++)
+            rbin[j] ^= ESalt[j];
     }
+
     return rbin + content;
 }
 
@@ -637,24 +669,76 @@ string RSARIPOFF_Decrypt(string encryptedData, string key) {
     string rbin = encryptedData.substr(0, 8);
     string content = encryptedData.substr(8);
 
+    // Ensure key is at least as long as rbin
+    while (key.length() < rbin.length())
+        key += key;
+    key = key.substr(0, rbin.length());
+
+    seed_seq seed(key.begin(), key.end());
+    mt19937 gen(seed);
+    uniform_int_distribution<> distr(10, 128);
+
     for (int i = 9; i >= 1; i--) {
+        string ESalt;
+        for (int j = 0; j < 150; j++) {
+            unsigned char c = distr(gen);
+            ESalt.push_back(c);
+        }
+        ESalt = ESalt.substr(0, rbin.length());
+
         string Salt = SaltGenDetermin("?@!@!@!*", "!@!^^!)$^!&@&!*@9", 12);
         while (Salt.length() < rbin.length()) Salt += Salt;
         Salt = Salt.substr(0, rbin.length());
-        for (int j = 0; j < rbin.length(); j++) {
+
+        // Undo Step 3: XOR with ESalt
+        for (int j = 0; j < rbin.length(); j++)
+            rbin[j] ^= ESalt[j];
+
+        // Undo Step 2: XOR with key
+        for (int j = 0; j < rbin.length(); j++)
+            rbin[j] ^= key[j];
+
+        // Undo Step 1: XOR with Salt
+        for (int j = 0; j < rbin.length(); j++)
             rbin[j] ^= Salt[j];
-        }
     }
 
     long long r = stringToLongLong(rbin);
-
     string stream = ProduceEncryptStream(r, content.length());
 
     for (int i = 0; i < content.length(); i++) {
         content[i] ^= stream[i];
     }
 
-    return content; 
+    return content;
+}
+
+string KDFMATH(string KEY) {
+    string output;
+    seed_seq seed(KEY.begin(), KEY.end());
+    mt19937 gen(seed);
+    uniform_int_distribution<> distr(10, 1000); // smaller range for better success
+
+    int m = distr(gen);
+    int k = distr(gen);
+    int a = 0;
+
+    for (int i = 0; i < 999;i++)
+    {
+        int m = distr(gen);
+        int k = distr(gen);
+        a = m * k + i;  
+        if (NumberCheck(a)) {
+            output.push_back((char)(a % 95 + 32)); 
+        }
+
+        k++;
+    }
+    for(char &c: output)
+    {
+        c = c << 1;
+    }
+    return output;
 }
 
 string MAC(string content, string key)
@@ -664,5 +748,6 @@ string MAC(string content, string key)
 
 string verifyMAC(const string& fullMessage, const string& key)
 {
+    
     return "";
 }
